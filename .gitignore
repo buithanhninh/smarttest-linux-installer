@@ -1,0 +1,7 @@
+smarttest_linux/
+*.rar
+*.tar.gz
+*.zip
+*.7z
+*.env
+*secrets*
