@@ -1,0 +1,23 @@
+[Unit]
+Description=SmartTest Online Examination
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=smarttest
+Group=smarttest
+UMask=0000
+WorkingDirectory=/opt/smarttest/current/publish
+EnvironmentFile=/etc/smarttest/smarttest.env
+ExecStart=/usr/bin/dotnet /opt/smarttest/current/publish/SmTesting.dll
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGINT
+SyslogIdentifier=smarttest
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

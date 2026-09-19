@@ -1,0 +1,19 @@
+[Unit]
+Description=Cloudflare Tunnel for SmartTest Thionline
+After=network-online.target smarttest.service
+Wants=network-online.target smarttest.service
+
+[Service]
+Type=simple
+User=cloudflared
+Group=cloudflared
+EnvironmentFile=/etc/cloudflared/thionline.env
+ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate run --proxy-keepalive-connections 2048
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGTERM
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
