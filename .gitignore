@@ -1,0 +1,16 @@
+# Logs & Artifacts
+*.log
+logs/
+bin/
+obj/
+*.pyc
+__pycache__/
+.env
+*.token
+e2e_screenshots/
+deep_test_artifacts/
+test_execution_artifacts/
+
+# System files
+.DS_Store
+Thumbs.db
