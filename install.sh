@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # SmartTest (HMUTEST) - 1-Click Automated Offline Production Installer
-# Version: v2026.09.21 (High Concurrency 2,000 Candidates)
+# Version: v2026.10.12 (High Concurrency 2,000 Candidates)
 # Compatible OS: Ubuntu 22.04 LTS / Ubuntu 24.04 LTS (x86_64)
 # ==============================================================================
 
@@ -20,7 +20,7 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 echo -e "${BLUE}==============================================================================${NC}"
-echo -e "${BLUE}   SMARTTEST (HMUTEST) - 1-CLICK PRODUCTION INSTALLER v2026.09.21            ${NC}"
+echo -e "${BLUE}   SMARTTEST (HMUTEST) - 1-CLICK PRODUCTION INSTALLER v2026.10.12            ${NC}"
 echo -e "${BLUE}   Kiến trúc Chịu tải cao 2.000 Thí sinh - Hoạt động Độc lập Standalone      ${NC}"
 echo -e "${BLUE}   Không yêu cầu bản quyền / license key - Sẵn sàng triển khai mọi máy chủ   ${NC}"
 echo -e "${BLUE}==============================================================================${NC}"
@@ -63,8 +63,21 @@ mkdir -p /opt/smarttest/current/publish
 mkdir -p /etc/smarttest
 mkdir -p /var/log/smarttest
 
-log_info "Sao chép toàn bộ bộ máy SmartTest Web binaries..."
-cp -a "${SCRIPT_DIR}/web/." /opt/smarttest/current/publish/
+if [ -d "${SCRIPT_DIR}/web" ] && [ -n "$(ls -A "${SCRIPT_DIR}/web" 2>/dev/null)" ]; then
+    log_info "Sao chép bộ máy SmartTest Web binaries từ gói phát hành..."
+    cp -a "${SCRIPT_DIR}/web/." /opt/smarttest/current/publish/
+elif [ -d "/opt/smarttest/current/publish" ] && [ -f "/opt/smarttest/current/publish/SmTesting.dll" ]; then
+    log_info "Đã phát hiện SmartTest Web binaries tại /opt/smarttest/current/publish. Giữ nguyên binaries và cập nhật cấu hình & database..."
+else
+    log_info "Không tìm thấy thư mục web binaries cục bộ. Đang tự động tải bộ binaries v2026.10.12 từ GitHub Releases..."
+    TMP_PKG="/tmp/smarttest_release_download.tar.gz"
+    TMP_DIR="/tmp/smarttest_extract_$$"
+    mkdir -p "$TMP_DIR"
+    curl -fsSL -o "$TMP_PKG" "https://github.com/buithanhninh/smarttest-linux-installer/releases/download/v2026.10.12/smarttest_linux_deploy_20261012.tar.gz"
+    tar -zxf "$TMP_PKG" -C "$TMP_DIR"
+    cp -a "$TMP_DIR"/smarttest_linux_deploy_20261012/web/. /opt/smarttest/current/publish/
+    rm -rf "$TMP_DIR" "$TMP_PKG"
+fi
 chown -R smarttest:smarttest /opt/smarttest
 chmod -R 755 /opt/smarttest/current/publish
 
@@ -99,18 +112,18 @@ if ! sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw smarttest_thionline;
     sudo -u postgres psql -c "CREATE DATABASE smarttest_thionline OWNER smarttest;"
 fi
 
-log_info "Nạp toàn bộ cấu trúc bảng và dữ liệu tài khoản quản trị chuẩn..."
-if [ -f "${SCRIPT_DIR}/database/03_smarttest_thionline_full_dump.sql" ]; then
-    sudo -u postgres psql -d smarttest_thionline -q -f "${SCRIPT_DIR}/database/03_smarttest_thionline_full_dump.sql"
-else
-    sudo -u postgres psql -d smarttest_thionline -q -f "${SCRIPT_DIR}/database/00_Create_DataBase_PostgreSQL.sql"
-    sudo -u postgres psql -d smarttest_thionline -q -f "${SCRIPT_DIR}/database/01_InitData_PostgreSQL.sql"
-fi
+log_info "Nạp cấu trúc bảng chuẩn và tiện ích mở rộng citext..."
+sudo -u postgres psql -d smarttest_thionline < "${SCRIPT_DIR}/database/00_Create_DataBase_PostgreSQL.sql"
+
+log_info "Nạp dữ liệu danh mục ban đầu (Khoa/Phòng, Cán bộ, Năm học, Môn học, Tài khoản mẫu)..."
+sudo -u postgres psql -d smarttest_thionline < "${SCRIPT_DIR}/database/01_InitData_PostgreSQL.sql"
 
 if [ -f "${SCRIPT_DIR}/database/02_create_high_concurrency_indexes.sql" ]; then
     log_info "Áp dụng 3 Index Composite B-Tree chiến lược (giảm thời gian tick đáp án xuống 0.12ms)..."
-    sudo -u postgres psql -d smarttest_thionline -q -f "${SCRIPT_DIR}/database/02_create_high_concurrency_indexes.sql"
+    sudo -u postgres psql -d smarttest_thionline < "${SCRIPT_DIR}/database/02_create_high_concurrency_indexes.sql"
 fi
+
+sudo -u postgres psql -d smarttest_thionline -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO smarttest; GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO smarttest;"
 
 # 6. Cấu hình & Kích hoạt Dịch vụ Systemd
 log_info "Bước 5/6: Đang cài đặt dịch vụ systemd (smarttest.service)..."

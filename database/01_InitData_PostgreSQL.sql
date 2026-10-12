@@ -184,6 +184,91 @@ INSERT INTO "Positions" ("Id", "Code", "Name", "RoleType", "Category", "Note", "
 INSERT INTO "Positions" ("Id", "Code", "Name", "RoleType", "Category", "Note", "IsActive", "CreatedAt") VALUES (2, 'PHO', 'Phó phòng', 1, NULL, NULL, true, '2026-07-10 03:15:40.096755');
 INSERT INTO "Positions" ("Id", "Code", "Name", "RoleType", "Category", "Note", "IsActive", "CreatedAt") VALUES (3, 'TRG', 'Trưởng phòng', 2, NULL, NULL, true, '2026-07-10 03:15:40.096755');
 
-INSERT INTO "Users" ("UserName", "Password", "RoleType", "Status", "CreateDate", "Avatar", "DeviceId", "OwnerId", "LastDate", "UserId") VALUES ('admin', '$pbkdf2-sha256$210000$LwD+/SjOEbaLDmtXYB+agA==$fLhxR3QZrHTy45EkswRl1TscHGpiJKAwWIAM/TvU5rc=', 10, 1, '2022-10-05 00:00:00.000', '/data/users/4/4.828c69aa49a8179393913dafdba56bdd/avatar.png', NULL, 0, '2026-03-05 09:22:43.570', 4);
+INSERT INTO "Users" ("UserName", "Password", "RoleType", "Status", "CreateDate", "Avatar", "DeviceId", "OwnerId", "LastDate", "UserId") VALUES ('admin', '$pbkdf2-sha256$210000$LwD+/SjOEbaLDmtXYB+agA==$fLhxR3QZrHTy45EkswRl1TscHGpiJKAwWIAM/TvU5rc=', 10, 1, '2022-10-05 00:00:00.000', '/data/users/4/4.828c69aa49a8179393913dafdba56bdd/avatar.png', NULL, 100888687411200000, '2026-03-05 09:22:43.570', 4);
+
+-- ==============================================================================
+-- CẤU HÌNH DANH MỤC KHỞI TẠO MẶC ĐỊNH (SEED DATA CHO HỆ THỐNG MỚI)
+-- Giải quyết triệt để lỗi khóa ngoại (Foreign Key) khi tạo Môn học, Kỳ thi, Cán bộ
+-- ==============================================================================
+
+-- 1. Khoa / Bộ môn mặc định
+INSERT INTO "Departments" ("ParentId", "Code", "Name", "Note", "DisplayIndex", "Type", "Id", "NameEn") 
+VALUES (0, 'KCB', 'Khoa Cơ bản & Khảo thí', 'Khoa mặc định hệ thống', 1, 1, 100000000000000001, 'General & Examination Dept')
+ON CONFLICT ("Id") DO NOTHING;
+
+-- 2. Cán bộ quản trị mặc định (gắn với tài khoản admin UserId = 4)
+INSERT INTO "Staffs" ("Code", "FullName", "DateOfBirth", "Gender", "Phone", "Email", "Address", "NationalId", "UserId", "Deleted", "DepartmentId", "Note", "Id") 
+VALUES ('ADMIN', 'Quản trị viên Hệ thống', '1990-01-01', 1, '', 'admin@smarttest.vn', '', '', 4, false, 100000000000000001, 'Tài khoản quản trị cao cấp', 100888687411200000)
+ON CONFLICT ("Id") DO NOTHING;
+
+-- 3. Phân công bộ môn cho cán bộ quản trị
+INSERT INTO "StaffDepts" ("StaffId", "DepartmentId", "PositionId", "Id") 
+VALUES (100888687411200000, 100000000000000001, 3, 100888687411200001)
+ON CONFLICT ("Id") DO NOTHING;
+
+-- 4. Phân quyền hệ thống cho admin
+INSERT INTO "UserRoles" ("RoleId", "UserId", "Id") 
+VALUES (100886154819141632, 4, 100888687411200002)
+ON CONFLICT ("Id") DO NOTHING;
+
+-- 5. Năm học mặc định (hỗ trợ tạo Kỳ thi ngay)
+INSERT INTO "Years" ("Code", "Name", "StartDate", "Id") 
+VALUES ('2026', '2026-2027', '2026-09-01', 1)
+ON CONFLICT ("Id") DO NOTHING;
+
+-- 6. Trình độ & Hệ đào tạo mặc định
+INSERT INTO "Levels" ("Name", "Note", "Status", "Id") 
+VALUES ('Đại học', 'Bậc Đại học', 1, 1)
+ON CONFLICT ("Id") DO NOTHING;
+
+INSERT INTO "TrainingTypes" ("Id", "Name", "Code") 
+VALUES (1, 'Chính quy', 'CQ') 
+ON CONFLICT ("Id") DO NOTHING;
+
+-- 7. Khóa học mặc định
+INSERT INTO "Courses" ("Name", "Note", "Status", "DepartmentId", "YearId", "Code", "Id") 
+VALUES ('Khóa 2026', 'Khóa học 2026', 1, 100000000000000001, 1, 'K2026', 1)
+ON CONFLICT ("Id") DO NOTHING;
+
+-- 8. Chuyên ngành đào tạo mặc định
+INSERT INTO "Majors" ("Code", "Name", "Note", "DepartmentId", "Status", "MaxTime", "TimeType", "Id") 
+VALUES ('YDK', 'Y đa khoa', 'Chuyên ngành Y đa khoa', 100000000000000001, 1, 6, 1, 1)
+ON CONFLICT ("Id") DO NOTHING;
+
+-- 9. Môn học mẫu chuẩn (cho phép bắt đầu tạo ngân hàng câu hỏi và kỳ thi ngay)
+INSERT INTO "Subjects" ("Code", "Name", "Note", "Weight", "DepartmentId", "ScoreTypes", "Id") 
+VALUES ('YCS01', 'Y học cơ sở', 'Môn học mẫu hệ thống', 1.0, 100000000000000001, '1', 100000000000000002)
+ON CONFLICT ("Id") DO NOTHING;
+
+-- 10. Phân công quản lý môn học mẫu cho Quản trị viên
+INSERT INTO "SubjectManagers" ("SubjectId", "StaffId", "Id") 
+VALUES (100000000000000002, 100888687411200000, 100000000000000003)
+ON CONFLICT ("Id") DO NOTHING;
+
+-- 11. Tài khoản Thí sinh mẫu 101, 102, 103 (mật khẩu: 101, 102, 103)
+INSERT INTO "Users" ("UserName", "Password", "RoleType", "Status", "CreateDate", "Avatar", "DeviceId", "OwnerId", "LastDate", "UserId") 
+VALUES ('101', '101', 0, 1, '2026-09-01 00:00:00.000', NULL, NULL, 226709871557345280, '2026-10-01 00:00:00.000', 226709872073244672)
+ON CONFLICT ("UserId") DO NOTHING;
+
+INSERT INTO "Students" ("Code", "FullName", "DateOfBirth", "Gender", "Phone", "Email", "Address", "NationalId", "UserId", "DepartmentId", "Status", "CreateDate", "Id") 
+VALUES ('101', 'Thí sinh Mẫu 101', '2004-01-01', 1, '', 'ts101@smarttest.vn', '', '', 226709872073244672, 100000000000000001, 1, '2026-09-01 00:00:00.000', 226709871557345280)
+ON CONFLICT ("Id") DO NOTHING;
+
+INSERT INTO "Users" ("UserName", "Password", "RoleType", "Status", "CreateDate", "Avatar", "DeviceId", "OwnerId", "LastDate", "UserId") 
+VALUES ('102', '102', 0, 1, '2026-09-01 00:00:00.000', NULL, NULL, 226709871565733888, '2026-10-01 00:00:00.000', 226709872081633280)
+ON CONFLICT ("UserId") DO NOTHING;
+
+INSERT INTO "Students" ("Code", "FullName", "DateOfBirth", "Gender", "Phone", "Email", "Address", "NationalId", "UserId", "DepartmentId", "Status", "CreateDate", "Id") 
+VALUES ('102', 'Thí sinh Mẫu 102', '2004-02-02', 2, '', 'ts102@smarttest.vn', '', '', 226709872081633280, 100000000000000001, 1, '2026-09-01 00:00:00.000', 226709871565733888)
+ON CONFLICT ("Id") DO NOTHING;
+
+INSERT INTO "Users" ("UserName", "Password", "RoleType", "Status", "CreateDate", "Avatar", "DeviceId", "OwnerId", "LastDate", "UserId") 
+VALUES ('103', '103', 0, 1, '2026-09-01 00:00:00.000', NULL, NULL, 226709871565733889, '2026-10-01 00:00:00.000', 226709872081633281)
+ON CONFLICT ("UserId") DO NOTHING;
+
+INSERT INTO "Students" ("Code", "FullName", "DateOfBirth", "Gender", "Phone", "Email", "Address", "NationalId", "UserId", "DepartmentId", "Status", "CreateDate", "Id") 
+VALUES ('103', 'Thí sinh Mẫu 103', '2004-03-03', 1, '', 'ts103@smarttest.vn', '', '', 226709872081633281, 100000000000000001, 1, '2026-09-01 00:00:00.000', 226709871565733889)
+ON CONFLICT ("Id") DO NOTHING;
 
 SET session_replication_role = DEFAULT;
+

@@ -1,6 +1,6 @@
 # SmartTest (HMUTEST) - High Concurrency Standalone Production Release
 
-Hệ thống khảo thí và thi trắc nghiệm trực tuyến **SmartTest (HMUTEST - Trường Đại học Y Hà Nội)** phiên bản chuẩn triển khai chính thức **v2026.09.21**.
+Hệ thống khảo thí và thi trắc nghiệm trực tuyến **SmartTest (HMUTEST - Trường Đại học Y Hà Nội)** phiên bản chuẩn triển khai chính thức **v2026.10.12**.
 
 Hệ thống được thiết kế và đóng gói hoạt động **100% độc lập (Standalone)**, **không yêu cầu đăng ký bản quyền, không khóa phần cứng (hardware/node-locking), không kích hoạt online và không giới hạn thời gian sử dụng**. Bất kỳ máy chủ Linux (Ubuntu 22.04 LTS / Ubuntu 24.04 LTS) nào cũng có thể tải về và cài đặt hoạt động hoàn hảo chỉ với 1 dòng lệnh duy nhất.
 
@@ -8,7 +8,7 @@ Hệ thống được thiết kế và đóng gói hoạt động **100% độc 
 
 ## 1. Thông tin Phiên bản & Tài khoản Mặc định
 
-* **Phiên bản phát hành:** `v2026.09.21`
+* **Phiên bản phát hành:** `v2026.10.12`
 * **Trạng thái bản quyền:** **Đã mở khóa hoàn toàn (Vĩnh viễn - Standalone)**. Không cần key, không kích hoạt, không phụ thuộc máy chủ cấp phép bên ngoài.
 * **Tài khoản Quản trị Tối cao (SuperAdmin - Toàn quyền cấu hình & quản trị):**
   * **Tên đăng nhập:** `admin`
@@ -61,11 +61,13 @@ Hệ thống được tối ưu hóa chịu tải cho **2.000 thí sinh thi đ�
   * `"IX_CandidateEvents_CandidateId_EventDate"`: Tối ưu ghi nhận và đọc nhật ký giám sát coi thi theo thời gian thực.
   * `"IX_CandidatePartScores_CandidateId"`: Tối ưu tính điểm và xuất báo cáo.
 * **Cấu hình phần cứng:** File `config/postgresql/99-high-concurrency.conf` cấp phát 6GB `shared_buffers` và 600 `max_connections`.
+* **Cơ sở dữ liệu mẫu chuẩn (Clean Seed Data):** Tích hợp đầy đủ danh mục gốc chuẩn (`Departments`, `Staffs`, `Years`, `Courses`, `Majors`, `Subjects`, `SubjectManagers`) trong `01_InitData_PostgreSQL.sql`, đảm bảo tạo mới Database không bao giờ gặp lỗi vi phạm khóa ngoại.
 
 ### 3.2. Tầng Ứng dụng Backend (.NET 10 / Kestrel)
 * Nâng giới hạn kết nối đồng thời lên **10.000 HTTP connections** và **5.000 WebSocket connections**.
 * Nâng giới hạn tải lên `MaxRequestBodySize` lên **100 MB** (cho phép upload đề thi Word chứa nhiều hình ảnh chụp X-quang/CT độ phân giải cao).
 * Mở socket lắng nghe trên `0.0.0.0:3154`, cho phép giảng viên/admin upload đề thi trực tiếp qua mạng LAN nội bộ tốc độ 1 Gbps (chỉ mất 0.3s / đề).
+* Tích hợp tính năng hiển thị mật khẩu thí sinh trên màn hình giám thị và xuất đề thi QTI 3.0 mã hóa AES-256.
 
 ### 3.3. Tầng Mạng & Cloudflare Edge Caching
 * Thiết lập Cloudflare Cache Rule lưu trữ toàn bộ file tĩnh (`/css/*`, `/js/*`, `/lib/*`, `/fonts/*`, `/images/*`) trên máy chủ Cloudflare với thời gian lưu đệm 1 tháng (`cache-control: max-age=2678400`).
@@ -79,11 +81,11 @@ Hệ thống được tối ưu hóa chịu tải cho **2.000 thí sinh thi đ�
 ### Cách 1: Triển khai từ gói phát hành Release (Khuyên dùng cho máy chủ mới)
 ```bash
 # 1. Tải bản phát hành mới nhất từ GitHub Releases
-wget https://github.com/buithanhninh/smarttest-linux-installer/releases/download/v2026.09.21/smarttest_linux_deploy_20260921.tar.gz
+wget https://github.com/buithanhninh/smarttest-linux-installer/releases/download/v2026.10.12/smarttest_linux_deploy_20261012.tar.gz
 
 # 2. Giải nén gói cài đặt
-tar -zxvf smarttest_linux_deploy_20260921.tar.gz
-cd smarttest_linux_deploy_20260921
+tar -zxvf smarttest_linux_deploy_20261012.tar.gz
+cd smarttest_linux_deploy_20261012
 
 # 3. Chạy script cài đặt tự động 1-click
 sudo ./install.sh
@@ -100,13 +102,14 @@ Sau khi cài đặt xong:
 * Truy cập cục bộ: `http://127.0.0.1:3154`
 * Truy cập qua mạng LAN: `http://<IP_MÁY_CHỦ>:3154`
 * Đăng nhập Admin: `admin` / `Admin@2026`
+* Đăng nhập Thí sinh mẫu: `101` / `101`
 
 ---
 
 ## 5. Cấu trúc Thư mục Gói Phát Hành
 
 ```
-smarttest_linux_deploy_20260921/
+smarttest_linux_deploy_20261012/
 ├── install.sh                                # Script cài đặt tự động 1-click
 ├── README.md                                 # Hướng dẫn chi tiết
 ├── SHA256SUMS.txt                            # Checksum xác thực toàn vẹn gói cài đặt
@@ -116,9 +119,8 @@ smarttest_linux_deploy_20260921/
 │   └── systemd/                              # Service units (smarttest, cloudflared, env)
 ├── database/
 │   ├── 00_Create_DataBase_PostgreSQL.sql     # Schema DDL khởi tạo đầy đủ các bảng
-│   ├── 01_InitData_PostgreSQL.sql            # Dữ liệu ban đầu chuẩn (mật khẩu admin: Admin@2026)
-│   ├── 02_create_high_concurrency_indexes.sql# 3 Index composite chịu tải cao
-│   └── 03_smarttest_thionline_full_dump.sql  # Toàn bộ database dump sạch sẵn sàng restore
+│   ├── 01_InitData_PostgreSQL.sql            # Dữ liệu ban đầu chuẩn (Admin, Danh mục gốc, Thí sinh mẫu)
+│   └── 02_create_high_concurrency_indexes.sql# 3 Index composite chịu tải cao
 └── web/                                      # Bộ binaries ứng dụng SmartTest đã biên dịch
 ```
 
