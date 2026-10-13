@@ -127,30 +127,52 @@ fi
 # 5. Khởi tạo Cơ sở dữ liệu & Nạp Index Tốc độ cao
 log_info "Bước 4/6: Đang khởi tạo Cơ sở dữ liệu smarttest_thionline..."
 
+pg_sql() {
+    if command -v runuser &>/dev/null; then
+        runuser -u postgres -- psql -P pager=off "$@"
+    elif command -v su &>/dev/null; then
+        su -s /bin/bash postgres -c "psql -P pager=off $*"
+    else
+        sudo -u postgres psql -P pager=off "$@"
+    fi
+}
+
+pg_stream_file() {
+    local db="$1"
+    local sql_file="$2"
+    if command -v runuser &>/dev/null; then
+        runuser -u postgres -- psql -d "$db" -P pager=off < "$sql_file"
+    elif command -v su &>/dev/null; then
+        su -s /bin/bash postgres -c "psql -d '$db' -P pager=off" < "$sql_file"
+    else
+        sudo -u postgres psql -d "$db" -P pager=off < "$sql_file"
+    fi
+}
+
 # Tạo user database smarttest nếu chưa có
-if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname = 'smarttest'" | grep -q 1; then
+if ! pg_sql -tc "SELECT 1 FROM pg_roles WHERE rolname = 'smarttest'" | grep -q 1; then
     log_info "Tạo role database 'smarttest'..."
-    sudo -u postgres psql -c "CREATE USER smarttest WITH PASSWORD 'SmartTest2026!Secure';"
-    sudo -u postgres psql -c "ALTER USER smarttest WITH SUPERUSER;"
+    pg_sql -c "CREATE USER smarttest WITH PASSWORD 'SmartTest2026!Secure';"
+    pg_sql -c "ALTER USER smarttest WITH SUPERUSER;"
 fi
 
 # Kiểm tra nếu DB chưa tồn tại thì tạo mới với OWNER smarttest
-if ! sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw smarttest_thionline; then
-    sudo -u postgres psql -c "CREATE DATABASE smarttest_thionline OWNER smarttest;"
+if ! pg_sql -lqt | cut -d \| -f 1 | grep -qw smarttest_thionline; then
+    pg_sql -c "CREATE DATABASE smarttest_thionline OWNER smarttest;"
 fi
 
 log_info "Nạp cấu trúc bảng chuẩn và tiện ích mở rộng citext..."
-sudo -u postgres psql -d smarttest_thionline < "${SCRIPT_DIR}/database/00_Create_DataBase_PostgreSQL.sql"
+pg_stream_file smarttest_thionline "${SCRIPT_DIR}/database/00_Create_DataBase_PostgreSQL.sql"
 
 log_info "Nạp dữ liệu danh mục ban đầu (Khoa/Phòng, Cán bộ, Năm học, Môn học, Tài khoản mẫu)..."
-sudo -u postgres psql -d smarttest_thionline < "${SCRIPT_DIR}/database/01_InitData_PostgreSQL.sql"
+pg_stream_file smarttest_thionline "${SCRIPT_DIR}/database/01_InitData_PostgreSQL.sql"
 
 if [ -f "${SCRIPT_DIR}/database/02_create_high_concurrency_indexes.sql" ]; then
     log_info "Áp dụng 3 Index Composite B-Tree chiến lược (giảm thời gian tick đáp án xuống 0.12ms)..."
-    sudo -u postgres psql -d smarttest_thionline < "${SCRIPT_DIR}/database/02_create_high_concurrency_indexes.sql"
+    pg_stream_file smarttest_thionline "${SCRIPT_DIR}/database/02_create_high_concurrency_indexes.sql"
 fi
 
-sudo -u postgres psql -d smarttest_thionline -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO smarttest; GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO smarttest;"
+pg_sql -d smarttest_thionline -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO smarttest; GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO smarttest;"
 
 # 6. Cấu hình & Kích hoạt Dịch vụ Systemd
 log_info "Bước 5/6: Đang cài đặt dịch vụ systemd (smarttest.service)..."

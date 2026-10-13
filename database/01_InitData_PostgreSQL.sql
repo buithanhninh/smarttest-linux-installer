@@ -221,8 +221,8 @@ INSERT INTO "Levels" ("Name", "Note", "Status", "Id")
 VALUES ('Đại học', 'Bậc Đại học', 1, 1)
 ON CONFLICT ("Id") DO NOTHING;
 
-INSERT INTO "TrainingTypes" ("Id", "Name", "Code") 
-VALUES (1, 'Chính quy', 'CQ') 
+INSERT INTO "TrainingTypes" ("Id", "Name", "Note", "Status") 
+VALUES (1, 'Chính quy', 'Hình thức Chính quy', 1) 
 ON CONFLICT ("Id") DO NOTHING;
 
 -- 7. Khóa học mặc định
