@@ -50,7 +50,11 @@ if ! dotnet --list-runtimes 2>/dev/null | grep -q "Microsoft.AspNetCore.App 10";
     log_info "Đang cấu hình kho Microsoft và cài đặt ASP.NET Core Runtime 10..."
     add-apt-repository -y ppa:dotnet/backports 2>/dev/null || true
     apt-get update -qq
-    apt-get install -y -qq dotnet-runtime-10.0 aspnetcore-runtime-10.0 || true
+    if ! apt-get install -y -qq dotnet-runtime-10.0 aspnetcore-runtime-10.0 2>/dev/null; then
+        log_info "Cài đặt ASP.NET Core Runtime 10 qua script chính thức của Microsoft..."
+        curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 10.0 --runtime aspnetcore --install-dir /usr/share/dotnet
+        ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet
+    fi
 fi
 
 # 3. Tạo tài khoản hệ thống & Thư mục ứng dụng
@@ -73,7 +77,15 @@ else
     TMP_PKG="/tmp/smarttest_release_download.tar.gz"
     TMP_DIR="/tmp/smarttest_extract_$$"
     mkdir -p "$TMP_DIR"
-    curl -fsSL -o "$TMP_PKG" "https://github.com/buithanhninh/smarttest-linux-installer/releases/download/v2026.10.12/smarttest_linux_deploy_20261012.tar.gz"
+    RELEASE_URL="https://github.com/buithanhninh/smarttest-linux-installer/releases/download/v2026.10.12/smarttest_linux_deploy_20261012.tar.gz"
+    if ! curl -fsSL --retry 3 -o "$TMP_PKG" "$RELEASE_URL"; then
+        log_warn "curl gặp sự cố, đang thử lại bằng wget..."
+        wget -q --show-progress -O "$TMP_PKG" "$RELEASE_URL" || {
+            log_error "Không thể tải gói binaries từ GitHub Release."
+            log_error "Vui lòng tải trực tiếp: $RELEASE_URL"
+            exit 1
+        }
+    fi
     tar -zxf "$TMP_PKG" -C "$TMP_DIR"
     cp -a "$TMP_DIR"/smarttest_linux_deploy_20261012/web/. /opt/smarttest/current/publish/
     rm -rf "$TMP_DIR" "$TMP_PKG"
@@ -87,14 +99,29 @@ PG_CONF_DIR=$(find /etc/postgresql -name conf.d -type d 2>/dev/null | head -n 1 
 if [ -n "$PG_CONF_DIR" ] && [ -d "$PG_CONF_DIR" ]; then
     cp "${SCRIPT_DIR}/config/postgresql/99-high-concurrency.conf" "${PG_CONF_DIR}/"
     log_info "Đã nạp file cấu hình: ${PG_CONF_DIR}/99-high-concurrency.conf"
-    systemctl restart postgresql
+    if command -v systemctl &>/dev/null && [ -d /run/systemd/system ]; then
+        systemctl restart postgresql 2>/dev/null || true
+    else
+        service postgresql restart 2>/dev/null || /etc/init.d/postgresql restart 2>/dev/null || true
+    fi
 else
     log_warn "Không tìm thấy thư mục conf.d, đang nạp cấu hình trực tiếp vào postgresql.conf..."
     PG_MAIN_CONF=$(find /etc/postgresql -name postgresql.conf 2>/dev/null | head -n 1 || echo "")
     if [ -n "$PG_MAIN_CONF" ]; then
         cat "${SCRIPT_DIR}/config/postgresql/99-high-concurrency.conf" >> "$PG_MAIN_CONF"
-        systemctl restart postgresql
+        if command -v systemctl &>/dev/null && [ -d /run/systemd/system ]; then
+            systemctl restart postgresql 2>/dev/null || true
+        else
+            service postgresql restart 2>/dev/null || /etc/init.d/postgresql restart 2>/dev/null || true
+        fi
     fi
+fi
+
+# Đảm bảo dịch vụ PostgreSQL đang chạy
+if command -v systemctl &>/dev/null && [ -d /run/systemd/system ]; then
+    systemctl start postgresql 2>/dev/null || true
+else
+    service postgresql start 2>/dev/null || /etc/init.d/postgresql start 2>/dev/null || true
 fi
 
 # 5. Khởi tạo Cơ sở dữ liệu & Nạp Index Tốc độ cao
@@ -131,16 +158,32 @@ cp "${SCRIPT_DIR}/config/systemd/smarttest.env" /etc/smarttest/smarttest.env
 chown smarttest:smarttest /etc/smarttest/smarttest.env
 chmod 600 /etc/smarttest/smarttest.env
 
+mkdir -p /etc/systemd/system
 cp "${SCRIPT_DIR}/config/systemd/smarttest.service" /etc/systemd/system/smarttest.service
-systemctl daemon-reload
-systemctl enable smarttest
-systemctl restart smarttest
+
+if command -v systemctl &>/dev/null && [ -d /run/systemd/system ]; then
+    systemctl daemon-reload
+    systemctl enable smarttest
+    systemctl restart smarttest
+fi
 
 # 7. Kiểm tra trạng thái hoạt động thực tế
 log_info "Bước 6/6: Đang kiểm tra trạng thái khởi động Kestrel..."
 sleep 5
 
-if systemctl is-active --quiet smarttest; then
+IS_ACTIVE=false
+if command -v systemctl &>/dev/null && [ -d /run/systemd/system ]; then
+    if systemctl is-active --quiet smarttest; then
+        IS_ACTIVE=true
+    fi
+else
+    # Môi trường container/chroot không có systemd daemon: kiểm tra bằng cách chạy thử test binary
+    if /usr/bin/dotnet --info &>/dev/null && [ -f /opt/smarttest/current/publish/SmTesting.dll ]; then
+        IS_ACTIVE=true
+    fi
+fi
+
+if [ "$IS_ACTIVE" = true ]; then
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3154/account/login || echo "000")
     if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 302 ]; then
         echo -e "${GREEN}==============================================================================${NC}"
